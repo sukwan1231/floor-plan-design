@@ -1,4 +1,4 @@
-import{useState,useRef,useCallback,useEffect,Component}from"react";
+import React,{useState,useRef,useCallback,useEffect,Component}from"react";
 
 var GS=32,HL=150,WT=150,SC=300;
 var T={WALL_L:"wall_l",WALL_M:"wall_m",WALL_S:"wall_s",DOOR:"door",FLOOR:"floor",DECO_L:"deco_l",DECO_M:"deco_m",DECO_S:"deco_s",STAIRS:"stairs",HSTAIRS:"half_stairs",WATER:"water",MOVABLE:"movable",LADDER:"ladder",ERASER:"eraser"};
