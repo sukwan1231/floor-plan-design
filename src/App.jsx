@@ -801,7 +801,7 @@ function App(){
   var redo=useCallback(function(){var arr=hmap[fid]||[{}];var ii=hidx[fid]||0;if(ii<arr.length-1){setHidx(function(h){var r=Object.assign({},h);r[fid]=ii+1;return r;});setTiles(JSON.parse(JSON.stringify(arr[ii+1])));};},[fid,hmap,hidx,setTiles]);
 
   var SKEY="level_designer_v1_user_presets";
-  useEffect(function(){try{window.storage.get(SKEY,true).then(function(r){if(r&&r.value)setSaved(JSON.parse(r.value));}).catch(function(){});}catch(e){}},[]);
+  useEffect(function(){try{var _raw=localStorage.getItem(SKEY);if(_raw)setSaved(JSON.parse(_raw));}catch(e){}},[]);
 
   var buildSaveData=useCallback(function(n){
     return{name:n,savedAt:new Date().toLocaleString("ko-KR"),levelName:lname,links:links,cellSize:cellSize,floorGap:floorGap,wallHL:wallHL,wallHM:wallHM,wallHS:wallHS,decoHL:decoHL,decoHM:decoHM,decoHS:decoHS,
@@ -813,7 +813,7 @@ function App(){
       var n=(sname&&sname.trim())||lname;
       var data=buildSaveData(n);
       var next=saved.filter(function(p){return p.name!==n;}).concat([data]);
-      setSaved(next);window.storage.set(SKEY,JSON.stringify(next),true).catch(function(){});
+      setSaved(next);localStorage.setItem(SKEY,JSON.stringify(next));
       setShowSave(false);setSaveName("");showM('"'+n+'" 저장 완료');
     }catch(e){showM("저장 실패: "+e.message,true);}
   },[buildSaveData,lname,saved,showM]);
@@ -822,7 +822,7 @@ function App(){
     try{
       var data=buildSaveData(targetName);
       var next=saved.map(function(p){return p.name===targetName?data:p;});
-      setSaved(next);window.storage.set(SKEY,JSON.stringify(next),true).catch(function(){});
+      setSaved(next);localStorage.setItem(SKEY,JSON.stringify(next));
       showM('"'+targetName+'" 덮어쓰기 완료');
     }catch(e){showM("덮어쓰기 실패: "+e.message,true);}
   },[buildSaveData,saved,showM]);
@@ -1376,7 +1376,7 @@ function App(){
                     </div>
                     <button onClick={function(){doLoad(p);}} style={{padding:"4px 10px",borderRadius:5,border:"1px solid #5865f244",background:"#5865f222",color:"#8b93ff",cursor:"pointer",fontSize:11,fontWeight:700}}>불러오기</button>
                     <button onClick={function(){doOverwrite(p.name);}} title="현재 작업으로 덮어쓰기" style={{padding:"4px 8px",borderRadius:5,border:"1px solid #f39c1244",background:"#f39c1211",color:"#f39c12",cursor:"pointer",fontSize:11,fontWeight:700}}>{"↩저장"}</button>
-                    <button onClick={function(){var n=saved.filter(function(x){return x.name!==p.name;});setSaved(n);window.storage.set(SKEY,JSON.stringify(n),true).catch(function(){});}} style={{padding:"4px 7px",borderRadius:5,border:"1px solid #e74c3c33",background:"none",color:"#e74c3c88",cursor:"pointer",fontSize:11}}>{"×"}</button>
+                    <button onClick={function(){var n=saved.filter(function(x){return x.name!==p.name;});setSaved(n);localStorage.setItem(SKEY,JSON.stringify(n));}} style={{padding:"4px 7px",borderRadius:5,border:"1px solid #e74c3c33",background:"none",color:"#e74c3c88",cursor:"pointer",fontSize:11}}>{"×"}</button>
                   </div>
                 );})}
               </div>}
