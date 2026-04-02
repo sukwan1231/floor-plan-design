@@ -1,11 +1,11 @@
 import React,{useState,useRef,useCallback,useEffect,Component}from"react";
 
 var GS=32,HL=150,WT=150,SC=300;
-var T={WALL_L:"wall_l",WALL_M:"wall_m",WALL_S:"wall_s",DOOR:"door",FLOOR:"floor",DECO_L:"deco_l",DECO_M:"deco_m",DECO_S:"deco_s",STAIRS:"stairs",HSTAIRS:"half_stairs",WATER:"water",MOVABLE:"movable",LADDER:"ladder",ERASER:"eraser"};
-var L={G:0,S:1,E:2};
+var T={WALL_L:"wall_l",WALL_M:"wall_m",WALL_S:"wall_s",DOOR:"door",FLOOR:"floor",DECO_L:"deco_l",DECO_M:"deco_m",DECO_S:"deco_s",STAIRS:"stairs",HSTAIRS:"half_stairs",WATER:"water",MOVABLE:"movable",LADDER:"ladder",ROOF:"roof",ERASER:"eraser"};
+var L={G:0,S:1,E:2,R:3};
 var EC=[0,1,-1];
 var ELB={"0":"기본","1":"+반층","-1":"-반층"};
-var ECOL={"0":"#3a3a4a","1":"#4a5a3a","-1":"#3a3a5a"};
+var ECOL={"0":"#7b8cde","1":"#5aaa7a","-1":"#8877cc"};
 var EI={"0":"◻","1":"△◻","-1":"▽◻"};
 var EA={"0":"░","1":"▲","-1":"▼"};
 var TC={};
@@ -22,12 +22,14 @@ TC[T.DECO_M]={l:L.E,label:"데코中",icon:"🪑",color:"#6e5a3e",sc:"R"};
 TC[T.DECO_S]={l:L.E,label:"데코小",icon:"📦",color:"#5a4a30",sc:"V"};
 TC[T.MOVABLE]={l:L.E,label:"무버블",icon:"🟧",color:"#c0392b",sc:"M"};
 TC[T.LADDER]={l:L.S,label:"사다리",icon:"🪜",color:"#8e44ad",sc:"B"};
+TC[T.ROOF]={l:L.R,label:"지붕",icon:"⌂",color:"#c0873a",sc:"H"};
 var ER={label:"지우개",icon:"✕",color:"#e74c3c",sc:"X"};
-var TB={background:"none",border:"1px solid #2a2a3a",color:"#9999aa",cursor:"pointer",borderRadius:6,padding:"8px 14px",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"};
+var ERASE_MODES=["전체","바닥","벽","계단","데코","지붕"];
+var TB={background:"none",border:"1px solid #d0d4dc",color:"#444455",cursor:"pointer",borderRadius:6,padding:"8px 14px",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"};
 
 function kf(x,y){return x+","+y;}
 function pk(k){var a=k.split(",");return{x:Number(a[0]),y:Number(a[1])};}
-function mf(name,w,h,tiles){return{id:Date.now()+"_"+Math.random(),name:name,width:w||20,height:h||15,tiles:tiles||{}};}
+function mf(name,w,h,tiles){return{id:Date.now()+"_"+Math.random(),name:name,width:w||50,height:h||50,tiles:tiles||{}};}
 
 function mb(obj){
   function set(x,y,tp,layer,elev){
@@ -420,13 +422,14 @@ function buildFloorMd(floor,fi,floors,links,cellSz,floorGap,wHL,wHM,wHS,dHL,dHM,
   if(!wHL)wHL=500;if(!wHM)wHM=250;if(!wHS)wHS=150;
   if(!dHL)dHL=300;if(!dHM)dHM=200;if(!dHS)dHS=100;
   var ft=floor.tiles||{},mw=floor.width||20,mh=floor.height||15,z=fi*floorGap;
-  var wLT=[],wMT=[],wST=[],stT=[],hsT=[],dL=[],dM=[],dS=[],doorT=[],movT=[],ladT=[];
+  var wLT=[],wMT=[],wST=[],stT=[],hsT=[],dL=[],dM=[],dS=[],doorT=[],movT=[],ladT=[],roofT=[],watT=[];
   var eg={"0":[],"1":[],"-1":[]};
-  var keys=Object.keys(ft),i,k,t,isEK,p,e;
+  var keys=Object.keys(ft),i,k,t,isEK,isRK,p,e;
   for(i=0;i<keys.length;i++){
     k=keys[i];t=ft[k];
     isEK=k.indexOf(",e")===k.length-2;
-    p=pk(isEK?k.slice(0,k.length-2):k);
+    isRK=k.indexOf(",r")===k.length-2;
+    p=pk((isEK||isRK)?k.slice(0,k.length-2):k);
     if(t.type==="wall_l")wLT.push(p);
     else if(t.type==="wall_m")wMT.push(p);
     else if(t.type==="wall_s")wST.push(p);
@@ -438,6 +441,8 @@ function buildFloorMd(floor,fi,floors,links,cellSz,floorGap,wHL,wHM,wHS,dHL,dHM,
     else if(t.type==="deco_s")dS.push(p);
     else if(t.type==="movable")movT.push(p);
     else if(t.type==="ladder"&&t.originX===p.x&&t.originY===p.y)ladT.push(p);
+    else if(t.type==="roof")roofT.push(p);
+    else if(t.type==="water")watT.push(p);
     else if(t.type==="floor"){e=String(t.elevation||0);if(eg[e])eg[e].push(p);else eg["0"].push(p);}
   }
   var md="## Floor "+(fi+1)+": "+floor.name+"\n- Grid: "+mw+"x"+mh+" | Z: "+z+" | +반층: "+(z+HL)+" | -반층: "+(z-HL)+"\n\n";
@@ -623,6 +628,14 @@ function buildFloorMd(floor,fi,floors,links,cellSz,floorGap,wHL,wHM,wHS,dHL,dHM,
     }
     md+="\n";
   }
+  if(watT.length){
+    var wRects=packRects(watT);
+    md+="### Water\n- 메시 타입: **Water Plane** (Static Mesh)\n- Z 위치: "+z+" (바닥과 동일 높이)\n\n";
+    md+="| # | Gx | Gy | Gw | Gh | Center X | Center Y | Z | Size X | Size Y |\n|---|---|---|---|---|---|---|---|---|---|\n";
+    var wri,wrc,wrcx,wrcy;
+    for(wri=0;wri<wRects.length;wri++){wrc=wRects[wri];wrcx=Math.round((wrc.x+wrc.w/2)*cellSz);wrcy=Math.round((wrc.y+wrc.h/2)*cellSz);md+="| "+(wri+1)+" | "+wrc.x+" | "+wrc.y+" | "+wrc.w+" | "+wrc.h+" | "+wrcx+" | "+wrcy+" | "+z+" | "+(wrc.w*cellSz)+" | "+(wrc.h*cellSz)+" |\n";}
+    md+="\n";
+  }
   if(dL.length||dM.length||dS.length){
     md+="### Deco\n| Type | Gx | Gy | Cx | Cy | FloorZ | HeightUU |\n|---|---|---|---|---|---|---|\n";
     var all=[],ev2,fz;
@@ -637,6 +650,18 @@ function buildFloorMd(floor,fi,floors,links,cellSz,floorGap,wHL,wHM,wHS,dHL,dHM,
     md+="| # | Gx | Gy | Center X | Center Y | Base Z |\n|---|---|---|---|---|---|\n";
     var ev3,fz3;
     for(i=0;i<movT.length;i++){p=movT[i];ev3=getElevAt(ft,p.x,p.y);fz3=z+ev3*HL;md+="| "+(i+1)+" | "+p.x+" | "+p.y+" | "+Math.round((p.x+0.5)*cellSz)+" | "+Math.round((p.y+0.5)*cellSz)+" | "+fz3+" |\n";}
+    md+="\n";
+  }
+  if(roofT.length){
+    var roofBaseZ=z+wHL;
+    var nbDirs=[{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+    var rects4=packRects(roofT);
+    md+="### Roof\n";
+    md+="- 기준 높이(Base Z): "+roofBaseZ+" UU (인접 벽 大 높이 기준)\n";
+    md+="- 메시 타입: Static Mesh Box (평지붕) 또는 프로젝트 지붕 메시\n\n";
+    md+="| # | Gx | Gy | Gw | Gh | Center X | Center Y | Base Z | Size X | Size Y |\n|---|---|---|---|---|---|---|---|---|---|\n";
+    var ri4,rc4,rcx4,rcy4;
+    for(ri4=0;ri4<rects4.length;ri4++){rc4=rects4[ri4];rcx4=Math.round((rc4.x+rc4.w/2)*cellSz);rcy4=Math.round((rc4.y+rc4.h/2)*cellSz);md+="| "+(ri4+1)+" | "+rc4.x+" | "+rc4.y+" | "+rc4.w+" | "+rc4.h+" | "+rcx4+" | "+rcy4+" | "+roofBaseZ+" | "+(rc4.w*cellSz)+" | "+(rc4.h*cellSz)+" |\n";}
     md+="\n";
   }
   return md;
@@ -699,7 +724,9 @@ function buildJSON(floors,links,name,cellSz,floorGap,wHL,wHM,wHS,dHL,dHM,dHS){
     for(i=0;i<floors.length;i++){
       f=floors[i];var tArr=[];ks=Object.keys(f.tiles||{});
       for(j=0;j<ks.length;j++){
-        isEK=ks[j].indexOf(",e")===ks[j].length-2;p=pk(isEK?ks[j].slice(0,ks[j].length-2):ks[j]);v=f.tiles[ks[j]];
+        isEK=ks[j].indexOf(",e")===ks[j].length-2;
+        var isRK2=ks[j].indexOf(",r")===ks[j].length-2;
+        p=pk((isEK||isRK2)?ks[j].slice(0,ks[j].length-2):ks[j]);v=f.tiles[ks[j]];
         td={x:p.x,y:p.y,type:v.type,layer:v.layer};if(v.elevation!==undefined)td.elevation=v.elevation;tArr.push(td);
       }
       obj.floors.push({name:f.name,w:f.width,h:f.height,z:i*floorGap,tiles:tArr});
@@ -727,7 +754,7 @@ class ErrBoundary extends Component{
 }
 
 function App(){
-  var r0=useState([mf("1F",20,15,{})]);var floors=r0[0],setFloors=r0[1];
+  var r0=useState([mf("1F",50,50,{})]);var floors=r0[0],setFloors=r0[1];
   var r1=useState(0);var ci=r1[0],setCi=r1[1];
   var r2=useState("Level 1");var lname=r2[0],setLname=r2[1];
   var r3=useState(100);var cellSize=r3[0],setCellSize=r3[1];
@@ -765,13 +792,17 @@ function App(){
   var r34=useState({});var hidx=r34[0],setHidx=r34[1];
   var r35=useState(false);var showCfg=r35[0],setShowCfg=r35[1];
   var r36=useState(null);var tileParam=r36[0],setTileParam=r36[1];
-  var r37=useState(false);var mergeMd=r37[0],setMergeMd=r37[1];
+  var r37=useState(true);var mergeMd=r37[0],setMergeMd=r37[1];
   var r38=useState(null);var hstairPick=r38[0],setHstairPick=r38[1];
   var r39=useState(false);var selMode=r39[0],setSelMode=r39[1];
   var r40=useState(null);var selRect=r40[0],setSelRect=r40[1];
   var r41=useState(null);var selTiles=r41[0],setSelTiles=r41[1];
   var r42=useState(null);var selDragStart=r42[0],setSelDragStart=r42[1];
   var selDragRef=useRef(null);
+  var r43=useState(1);var brushSize=r43[0],setBrushSize=r43[1];
+  var r44=useState(true);var showRoof=r44[0],setShowRoof=r44[1];
+  var r45=useState(0);var eraseMode=r45[0],setEraseMode=r45[1];
+  var r46=useState(false);var showErasePop=r46[0],setShowErasePop=r46[1];
 
   var panRef=useRef(null),cvRef=useRef(null),ctRef=useRef(null);
   var ciRef=useRef(ci);useEffect(function(){ciRef.current=ci;},[ci]);
@@ -829,7 +860,7 @@ function App(){
 
   var doLoad=useCallback(function(data){
     try{
-      var fl=data.floors.map(function(f){var t={};(f.tiles||[]).forEach(function(d){var td=Object.assign({},d);delete td.x;delete td.y;var k=(d.layer===L.E)?kf(d.x,d.y)+",e":kf(d.x,d.y);t[k]=td;});return mf(f.name,f.width,f.height,t);});
+      var fl=data.floors.map(function(f){var t={};(f.tiles||[]).forEach(function(d){var td=Object.assign({},d);delete td.x;delete td.y;var k=(d.layer===L.R)?kf(d.x,d.y)+",r":(d.layer===L.E)?kf(d.x,d.y)+",e":kf(d.x,d.y);t[k]=td;});return mf(f.name,f.width,f.height,t);});
       setFloors(fl);setLname(data.levelName||"");setLinks(data.links||[]);
       if(data.cellSize)setCellSize(data.cellSize);if(data.floorGap)setFloorGap(data.floorGap);
       if(data.wallHL)setWallHL(data.wallHL);if(data.wallHM)setWallHM(data.wallHM);if(data.wallHS)setWallHS(data.wallHS);
@@ -842,7 +873,7 @@ function App(){
     setImpErr("");
     try{
       var p=JSON.parse(impTxt);
-      var fl=(p.floors||[]).map(function(f){var t={};(f.tiles||[]).forEach(function(d){var td={type:d.type,layer:d.layer};if(d.elevation!==undefined)td.elevation=d.elevation;var k=(d.layer===L.E)?kf(d.x,d.y)+",e":kf(d.x,d.y);t[k]=td;});return mf(f.name,f.width,f.height,t);});
+      var fl=(p.floors||[]).map(function(f){var t={};(f.tiles||[]).forEach(function(d){var td={type:d.type,layer:d.layer};if(d.elevation!==undefined)td.elevation=d.elevation;var k=(d.layer===L.R)?kf(d.x,d.y)+",r":(d.layer===L.E)?kf(d.x,d.y)+",e":kf(d.x,d.y);t[k]=td;});return mf(f.name,f.width,f.height,t);});
       if(!fl.length){setImpErr("floors 없음");return;}
       setFloors(fl);setLname(p.name||"Imported");setLinks([]);
       if(p.cellSize)setCellSize(p.cellSize);if(p.floorGap)setFloorGap(p.floorGap);
@@ -857,16 +888,24 @@ function App(){
       if(x<0||x>=mw||y<0||y>=mh)return;
       var k=kf(x,y),curFi=ciRef.current,curFlen=flRef.current.length;
       var isStairs=!rc&&tool===T.STAIRS,isHStairs=!rc&&tool===T.HSTAIRS;
+      var isLadder=!rc&&tool===T.LADDER;
+      var half=Math.floor(brushSize/2);
       setTiles(function(prev){
         var next=Object.assign({},prev);
+        var bx,by,bk;
         if(tool===T.ERASER){
-          var lt=prev[k];
-          if(lt&&lt.type==="ladder"){
-            var ox=lt.originX,oy=lt.originY,n2=Object.assign({},next),edy,edx;
-            for(edy=0;edy<=1;edy++)for(edx=0;edx<=1;edx++)delete n2[kf(ox+edx,oy+edy)];
-            return n2;
+          for(by=y-half;by<=y+half;by++)for(bx=x-half;bx<=x+half;bx++){
+            bk=kf(bx,by);
+            var lt=prev[bk];
+            if(eraseMode===0){
+              if(lt&&lt.type==="ladder"){var ox=lt.originX,oy=lt.originY,edy,edx;for(edy=0;edy<=1;edy++)for(edx=0;edx<=1;edx++)delete next[kf(ox+edx,oy+edy)];}
+              else{delete next[bk];delete next[bk+",e"];delete next[bk+",r"];}
+            }else if(eraseMode===1){if(prev[bk]&&prev[bk].type===T.FLOOR)delete next[bk];}
+            else if(eraseMode===2){if(prev[bk]&&(prev[bk].type===T.WALL_L||prev[bk].type===T.WALL_M||prev[bk].type===T.WALL_S||prev[bk].type===T.DOOR))delete next[bk];}
+            else if(eraseMode===3){if(prev[bk]&&(prev[bk].type===T.STAIRS||prev[bk].type===T.HSTAIRS||prev[bk].type===T.LADDER))delete next[bk];}
+            else if(eraseMode===4){delete next[bk+",e"];}
+            else if(eraseMode===5){delete next[bk+",r"];}
           }
-          delete next[k];delete next[k+",e"];
           setLinks(function(sl){return sl.filter(function(l){return!(l.fromFloor===curFi&&l.fromX===x&&l.fromY===y)&&!(l.toFloor===curFi&&l.toX===x&&l.toY===y);});});
           return next;
         }
@@ -874,23 +913,36 @@ function App(){
           if(prev[k]&&prev[k].type===T.FLOOR){var idx=EC.indexOf(prev[k].elevation||0);var r2=Object.assign({},prev);r2[k]=Object.assign({},prev[k],{elevation:EC[(idx+1)%EC.length]});return r2;}
           return prev;
         }
-        if(tool===T.LADDER){
+        if(isLadder){
           if(x+1>=mw||y+1>=mh)return prev;
           if(prev[k]&&prev[k].type==="ladder")return prev;
           var nl=Object.assign({},next),ldy,ldx;
           for(ldy=0;ldy<=1;ldy++)for(ldx=0;ldx<=1;ldx++)nl[kf(x+ldx,y+ldy)]={type:"ladder",layer:L.S,originX:x,originY:y};
           return nl;
         }
-        var isEntity=TC[tool]&&TC[tool].l===L.E,ek=isEntity?(k+",e"):k;
-        if(isEntity){if(prev[ek]&&prev[ek].type===tool)return prev;next[ek]={type:tool,layer:L.E};return next;}
-        if(prev[k]&&prev[k].type===tool&&(tool!==T.FLOOR||prev[k].elevation===elev))return prev;
-        var td={type:tool,layer:TC[tool].l};if(tool===T.FLOOR)td.elevation=elev;
-        next[k]=td;return next;
+        var isEntity=TC[tool]&&TC[tool].l===L.E;
+        var isRoof=TC[tool]&&TC[tool].l===L.R;
+        for(by=y-half;by<=y+half;by++){
+          for(bx=x-half;bx<=x+half;bx++){
+            if(bx<0||bx>=mw||by<0||by>=mh)continue;
+            bk=kf(bx,by);
+            var ek=isEntity?(bk+",e"):isRoof?(bk+",r"):bk;
+            if(isEntity){if(!(prev[ek]&&prev[ek].type===tool))next[ek]={type:tool,layer:L.E};}
+            else if(isRoof){next[ek]={type:T.ROOF,layer:L.R};}
+            else{
+              if(!(prev[bk]&&prev[bk].type===tool&&(tool!==T.FLOOR||prev[bk].elevation===elev))){
+                var td={type:tool,layer:TC[tool].l};if(tool===T.FLOOR)td.elevation=elev;
+                next[bk]=td;
+              }
+            }
+          }
+        }
+        return next;
       });
       if(isStairs&&curFlen>1)setTimeout(function(){setLmode({ffi:curFi,fx:x,fy:y,isH:false,tfi:null});},50);
       if(isHStairs)setTimeout(function(){setHstairPick({x:x,y:y});},50);
     }catch(e){}
-  },[tool,elev,mw,mh,setTiles]);
+  },[tool,elev,mw,mh,setTiles,brushSize]);
 
   var doSelStart=useCallback(function(x,y){
     setSelRect({x1:x,y1:y,x2:x,y2:y});
@@ -1003,11 +1055,13 @@ function App(){
 
   useEffect(function(){
     function h(e){
-      if(e.key==="Escape"){if(hstairPick){setHstairPick(null);return;}if(tileParam){setTileParam(null);return;}if(selMode){setSelMode(false);setSelRect(null);setSelTiles(null);return;}if(lmode){setLmode(null);return;}if(showCfg){setShowCfg(false);return;}}
+      if(e.key==="Escape"){if(showErasePop){setShowErasePop(false);return;}if(hstairPick){setHstairPick(null);return;}if(tileParam){setTileParam(null);return;}if(selMode){setSelMode(false);setSelRect(null);setSelTiles(null);return;}if(lmode){setLmode(null);return;}if(showCfg){setShowCfg(false);return;}}
       if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA")return;
       if((e.metaKey||e.ctrlKey)&&e.key==="z"){e.preventDefault();e.shiftKey?redo():undo();return;}
       if(lmode||hstairPick)return;
       var k2=e.key.toUpperCase(),i,tkeys=Object.keys(TC);
+      if(e.key==="["){setBrushSize(function(v){return Math.max(1,v-1);});return;}
+      if(e.key==="]"){setBrushSize(function(v){return Math.min(9,v+1);});return;}
       if(k2==="S"){setSelMode(function(v){if(v){setSelRect(null);setSelTiles(null);}return !v;});return;}
       for(i=0;i<tkeys.length;i++){if(TC[tkeys[i]].sc===k2){setTool(tkeys[i]);if(selMode){setSelMode(false);setSelRect(null);setSelTiles(null);}return;}}
       if(k2===ER.sc){setTool(T.ERASER);if(selMode){setSelMode(false);setSelRect(null);setSelTiles(null);}return;}
@@ -1085,8 +1139,13 @@ function App(){
   function renderTile(k,t){
     try{
       var isEK=k.indexOf(",e")===k.length-2;
-      var coordK=isEK?k.slice(0,k.length-2):k;
+      var isRK=k.indexOf(",r")===k.length-2;
+      var coordK=(isEK||isRK)?k.slice(0,k.length-2):k;
       var pos=pk(coordK),x=pos.x,y=pos.y;
+      if(t.type===T.ROOF){
+        if(!showRoof)return null;
+        return(<div key={k} style={{position:"absolute",left:x*GS,top:y*GS,width:GS,height:GS,background:"#c0873a",opacity:0.55,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",zIndex:L.R+10,pointerEvents:"none",userSelect:"none",border:"1px solid #a06828",boxSizing:"border-box"}}>{"⌂"}</div>);
+      }
       if(t.type==="ladder"){
         if(t.originX!==x||t.originY!==y)return null;
         if(aLayer!=="all"&&t.layer!==Number(aLayer))return null;
@@ -1114,7 +1173,7 @@ function App(){
   }
 
   var glines=[],gx,gy;
-  if(grid){for(gx=0;gx<=mw;gx++)glines.push(<line key={"v"+gx} x1={gx*GS} y1={0} x2={gx*GS} y2={mh*GS} stroke="rgba(255,255,255,0.06)" strokeWidth={1}/>);for(gy=0;gy<=mh;gy++)glines.push(<line key={"h"+gy} x1={0} y1={gy*GS} x2={mw*GS} y2={gy*GS} stroke="rgba(255,255,255,0.06)" strokeWidth={1}/>);}
+  if(grid){for(gx=0;gx<=mw;gx++)glines.push(<line key={"v"+gx} x1={gx*GS} y1={0} x2={gx*GS} y2={mh*GS} stroke="rgba(0,0,0,0.08)" strokeWidth={1}/>);for(gy=0;gy<=mh;gy++)glines.push(<line key={"h"+gy} x1={0} y1={gy*GS} x2={mw*GS} y2={gy*GS} stroke="rgba(0,0,0,0.08)" strokeWidth={1}/>);}
 
   var selOverlay=null;
   if(selMode&&selRect){
@@ -1124,21 +1183,21 @@ function App(){
   }
 
   var lnames=["바닥","구조물","엔티티"];
-  var inp={background:"#1a1a28",border:"1px solid #2a2a3a",borderRadius:5,color:"#e8e8f0",outline:"none",boxSizing:"border-box"};
+  var inp={background:"#ffffff",border:"1px solid #d0d4dc",borderRadius:5,color:"#1a1a2e",outline:"none",boxSizing:"border-box"};
 
   return(
-    <div style={{width:"100%",height:"100vh",display:"flex",background:"#0e0e14",fontFamily:"monospace",color:"#c8c8d4",overflow:"hidden",fontSize:"200%"}}>
+    <div style={{width:"100%",height:"100vh",display:"flex",background:"#f0f2f5",fontFamily:"monospace",color:"#1a1a2e",overflow:"hidden",fontSize:"200%"}}>
       <style>{"@keyframes fU{from{opacity:0;transform:translateX(-50%) translateY(6px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}"}</style>
       {msg&&<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:msg.err?"#c0392b":"#27ae60",color:"#fff",padding:"10px 24px",borderRadius:8,fontSize:14,fontWeight:600,zIndex:9999,pointerEvents:"none",animation:"fU .15s ease"}}>{msg.m}</div>}
 
-      <div style={{width:280,minWidth:280,background:"#14141e",borderRight:"1px solid #2a2a3a",display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{padding:"14px 14px 12px",borderBottom:"1px solid #2a2a3a"}}>
-          <div style={{fontSize:12,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#6c6c8a",marginBottom:8}}>Level Designer</div>
+      <div style={{width:280,minWidth:280,background:"#ffffff",borderRight:"1px solid #d0d4dc",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <div style={{padding:"14px 14px 12px",borderBottom:"1px solid #d0d4dc"}}>
+          <div style={{fontSize:12,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#7777aa",marginBottom:8}}>평면도 디자인 툴</div>
           <input value={lname} onChange={function(e){setLname(e.target.value);}} placeholder="프로젝트 이름" style={Object.assign({},inp,{width:"100%",padding:"8px 10px",fontSize:15})}/>
         </div>
 
         {lmode&&(lmode.isH||flRef.current.length>1)&&(
-          <div style={{padding:"10px 12px",background:"#1a1a0a",borderBottom:"2px solid #f1c40f",flexShrink:0}}>
+          <div style={{padding:"10px 12px",background:"#fffde7",borderBottom:"2px solid #f39c12",flexShrink:0}}>
             <div style={{fontSize:15,fontWeight:700,color:"#f1c40f",marginBottom:8}}>계단 연결</div>
             <div style={{fontSize:13,color:"#9a8a5a",marginBottom:10,lineHeight:1.5}}>
               {floors[lmode.ffi]&&<span style={{color:"#f1c40f",fontWeight:700}}>{floors[lmode.ffi].name}</span>} ({lmode.fx},{lmode.fy})<br/>
@@ -1147,7 +1206,7 @@ function App(){
             {!lmode.isH&&(
               <div style={{display:"flex",flexDirection:"column",gap:3,marginBottom:8}}>
                 {floors.map(function(f,i){if(i===lmode.ffi)return null;var sel=lmode.tfi===i;return(
-                  <button key={i} onClick={function(){var idx=i;setLmode(function(lm){return Object.assign({},lm,{tfi:idx});});setPan({x:0,y:0});}} style={{padding:"5px 8px",borderRadius:5,border:"1px solid "+(sel?"#2ecc71":"#2a2a3a"),background:sel?"#2ecc7122":"#0e0e14",color:sel?"#2ecc71":"#9999aa",fontSize:12,cursor:"pointer",textAlign:"left"}}>
+                  <button key={i} onClick={function(){var idx=i;setLmode(function(lm){return Object.assign({},lm,{tfi:idx});});setPan({x:0,y:0});}} style={{padding:"5px 8px",borderRadius:5,border:"1px solid "+(sel?"#2ecc71":"#d0d4dc"),background:sel?"#2ecc7122":"#f0f2f5",color:sel?"#2ecc71":"#9999aa",fontSize:12,cursor:"pointer",textAlign:"left"}}>
                     {sel?"▶ ":""}{f.name}
                   </button>
                 );})}
@@ -1159,9 +1218,9 @@ function App(){
 
         {!lmode&&(
           <div style={{display:"flex",flexDirection:"column",flex:1,overflow:"hidden"}}>
-            <div style={{padding:"8px 12px",borderBottom:"1px solid #2a2a3a"}}>
+            <div style={{padding:"8px 12px",borderBottom:"1px solid #d0d4dc"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <span style={{fontSize:12,fontWeight:600,color:"#6c6c8a",textTransform:"uppercase"}}>층 관리</span>
+                <span style={{fontSize:12,fontWeight:600,color:"#7777aa",textTransform:"uppercase"}}>층 관리</span>
                 <div style={{display:"flex",gap:3}}>
                   <button onClick={addFloor} style={{background:"#2ecc7122",border:"1px solid #2ecc7144",color:"#2ecc71",borderRadius:4,padding:"2px 9px",cursor:"pointer",fontSize:16,fontWeight:700}}>+</button>
                   <button onClick={dupFloor} style={{background:"#5865f222",border:"1px solid #5865f244",color:"#8b93ff",borderRadius:4,padding:"2px 9px",cursor:"pointer",fontSize:14}}>{"⧉"}</button>
@@ -1170,13 +1229,13 @@ function App(){
               <div style={{display:"flex",flexDirection:"column",gap:2,maxHeight:90,overflowY:"auto"}}>
                 {floors.map(function(f,i){return(
                   <div key={f.id} style={{display:"flex",alignItems:"center",gap:3}}>
-                    <button onClick={function(){var idx=i;setCi(idx);setPan({x:0,y:0});}} style={{flex:1,padding:"6px 9px",borderRadius:4,border:"1px solid "+(i===ci?"#5865f2":"#2a2a3a"),background:i===ci?"#5865f222":"transparent",color:i===ci?"#8b93ff":"#9999aa",fontSize:14,cursor:"pointer",textAlign:"left",fontWeight:i===ci?700:400}}>{f.name}</button>
+                    <button onClick={function(){var idx=i;setCi(idx);setPan({x:0,y:0});}} style={{flex:1,padding:"6px 9px",borderRadius:4,border:"1px solid "+(i===ci?"#5865f2":"#d0d4dc"),background:i===ci?"#e8eaff":"transparent",color:i===ci?"#8b93ff":"#9999aa",fontSize:14,cursor:"pointer",textAlign:"left",fontWeight:i===ci?700:400}}>{f.name}</button>
                     {floors.length>1&&<button onClick={function(){delFloor(i);}} style={{background:"none",border:"1px solid #e74c3c33",color:"#e74c3c88",borderRadius:3,padding:"2px 6px",cursor:"pointer",fontSize:12}}>{"✕"}</button>}
                   </div>
                 );})}
               </div>
             </div>
-            <div style={{padding:"8px 12px",borderBottom:"1px solid #2a2a3a"}}>
+            <div style={{padding:"8px 12px",borderBottom:"1px solid #d0d4dc"}}>
               <input value={floors[ci]?floors[ci].name:""} onChange={function(e){var v=e.target.value;setFloors(function(p){var i=ciRef.current,n=p.slice();n[i]=Object.assign({},n[i],{name:v});return n;});}} placeholder="층 이름" style={Object.assign({},inp,{width:"100%",padding:"5px 7px",fontSize:12,marginBottom:5})}/>
               <div style={{display:"flex",gap:6}}>
                 {[["W",mw,function(w){setFloors(function(p){var i=ciRef.current,n=p.slice();n[i]=Object.assign({},n[i],{width:w});return n;});}],["H",mh,function(h){setFloors(function(p){var i=ciRef.current,n=p.slice();n[i]=Object.assign({},n[i],{height:h});return n;});}]].map(function(item){return(
@@ -1187,14 +1246,14 @@ function App(){
                 );})}
               </div>
             </div>
-            <div style={{padding:"8px 12px",borderBottom:"1px solid #2a2a3a"}}>
-              <div style={{fontSize:12,fontWeight:600,color:"#6c6c8a",marginBottom:6,textTransform:"uppercase"}}>레이어</div>
+            <div style={{padding:"8px 12px",borderBottom:"1px solid #d0d4dc"}}>
+              <div style={{fontSize:12,fontWeight:600,color:"#7777aa",marginBottom:6,textTransform:"uppercase"}}>레이어</div>
               <div style={{display:"flex",gap:4}}>
-                {["all","0","1","2"].map(function(l){return <button key={l} onClick={function(){setALayer(l);}} style={{flex:1,padding:"5px 0",borderRadius:4,border:"1px solid "+(aLayer===l?"#5865f2":"#2a2a3a"),background:aLayer===l?"#5865f222":"transparent",color:aLayer===l?"#8b93ff":"#6c6c8a",fontSize:12,cursor:"pointer",fontWeight:600}}>{l==="all"?"전체":lnames[Number(l)]}</button>;})}
+                {["all","0","1","2"].map(function(l){return <button key={l} onClick={function(){setALayer(l);}} style={{flex:1,padding:"5px 0",borderRadius:4,border:"1px solid "+(aLayer===l?"#5865f2":"#d0d4dc"),background:aLayer===l?"#5865f222":"transparent",color:aLayer===l?"#8b93ff":"#6c6c8a",fontSize:12,cursor:"pointer",fontWeight:600}}>{l==="all"?"전체":lnames[Number(l)]}</button>;})}
               </div>
             </div>
             <div style={{padding:"8px 12px",flex:1,overflowY:"auto"}}>
-              <div style={{fontSize:12,fontWeight:600,color:"#6c6c8a",marginBottom:6,textTransform:"uppercase"}}>도구</div>
+              <div style={{fontSize:12,fontWeight:600,color:"#7777aa",marginBottom:6,textTransform:"uppercase"}}>도구</div>
               <div style={{display:"flex",flexDirection:"column",gap:2}}>
                 {Object.keys(TC).map(function(tkey){
                   var cfg=TC[tkey],hasPm=!!tileParamCfg[tkey];
@@ -1206,60 +1265,77 @@ function App(){
                           <span style={{flex:1,fontSize:13}}>{cfg.label}{(tkey===T.FLOOR&&tool===tkey)?(" ("+ELB[String(elev)]+")"):""}</span>
                           <span style={{fontSize:12,color:"#555"}}>{cfg.sc}</span>
                         </button>
-                        {hasPm&&<button onClick={function(e){openTileParam(tkey,e);}} style={{flexShrink:0,width:22,height:22,borderRadius:4,border:"1px solid #2a2a3a",background:"#1a1a28",color:"#666",cursor:"pointer",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center"}}>{"⚙"}</button>}
+                        {hasPm&&<button onClick={function(e){openTileParam(tkey,e);}} style={{flexShrink:0,width:22,height:22,borderRadius:4,border:"1px solid #d0d4dc",background:"#ffffff",color:"#666",cursor:"pointer",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center"}}>{"⚙"}</button>}
                       </div>
                       {tkey===T.FLOOR&&tool===T.FLOOR&&(
                         <div style={{display:"flex",gap:2,padding:"2px 8px 5px"}}>
-                          {EC.map(function(e){return <button key={e} onClick={function(){setElev(e);}} style={{flex:1,padding:"3px 0",borderRadius:3,border:"1px solid "+(elev===e?ECOL[String(e)]:"#2a2a3a"),background:elev===e?ECOL[String(e)]+"44":"transparent",color:elev===e?"#e8e8f0":"#666",fontSize:11,cursor:"pointer",fontWeight:elev===e?700:400}}>{EI[String(e)]} {ELB[String(e)]}</button>;})}
+                          {EC.map(function(e){return <button key={e} onClick={function(){setElev(e);}} style={{flex:1,padding:"3px 0",borderRadius:3,border:"1px solid "+(elev===e?ECOL[String(e)]:"#d0d4dc"),background:elev===e?ECOL[String(e)]+"44":"transparent",color:elev===e?"#e8e8f0":"#666",fontSize:11,cursor:"pointer",fontWeight:elev===e?700:400}}>{EI[String(e)]} {ELB[String(e)]}</button>;})}
                         </div>
                       )}
                     </div>
                   );
                 })}
-                <button onClick={function(){setTool(T.ERASER);}} style={{display:"flex",alignItems:"center",gap:7,padding:"7px 8px",borderRadius:4,border:"none",background:tool===T.ERASER?"#5865f222":"transparent",cursor:"pointer",color:tool===T.ERASER?"#8b93ff":"#9999aa",fontSize:14,textAlign:"left",outline:tool===T.ERASER?"1px solid #5865f2":"none",marginTop:4}}>
-                  <span style={{width:26,height:26,borderRadius:3,background:ER.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"#fff",flexShrink:0}}>{ER.icon}</span>
-                  <span style={{flex:1,fontSize:13}}>{ER.label}</span>
-                  <span style={{fontSize:12,color:"#555"}}>{ER.sc}</span>
-                </button>
+                <div style={{position:"relative",marginTop:4}}>
+                  <div style={{display:"flex",alignItems:"center",gap:2}}>
+                    <button onClick={function(){setTool(T.ERASER);}} style={{flex:1,display:"flex",alignItems:"center",gap:7,padding:"7px 8px",borderRadius:4,border:"none",background:tool===T.ERASER?"#5865f222":"transparent",cursor:"pointer",color:tool===T.ERASER?"#8b93ff":"#9999aa",fontSize:14,textAlign:"left",outline:tool===T.ERASER?"1px solid #5865f2":"none"}}>
+                      <span style={{width:26,height:26,borderRadius:3,background:ER.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"#fff",flexShrink:0}}>{ER.icon}</span>
+                      <span style={{flex:1,fontSize:13}}>{ER.label}{eraseMode>0?" ("+ERASE_MODES[eraseMode]+")":""}</span>
+                      <span style={{fontSize:12,color:"#555"}}>{ER.sc}</span>
+                    </button>
+                    <button onClick={function(e){e.stopPropagation();setShowErasePop(function(v){return !v;});}} style={{flexShrink:0,width:22,height:22,borderRadius:4,border:"1px solid #d0d4dc",background:"#ffffff",color:"#666",cursor:"pointer",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center"}}>{"▾"}</button>
+                  </div>
+                  {showErasePop&&(
+                    <div style={{position:"absolute",left:0,top:"100%",zIndex:500,background:"#ffffff",border:"1px solid #d0d4dc",borderRadius:6,padding:4,boxShadow:"0 4px 12px rgba(0,0,0,0.12)",minWidth:120}}>
+                      {ERASE_MODES.map(function(m,mi){return(
+                        <button key={mi} onClick={function(){setEraseMode(mi);setTool(T.ERASER);setShowErasePop(false);}} style={{display:"block",width:"100%",padding:"5px 10px",borderRadius:4,border:"none",background:eraseMode===mi?"#e74c3c22":"transparent",color:eraseMode===mi?"#e74c3c":"#444",fontSize:12,cursor:"pointer",textAlign:"left",fontWeight:eraseMode===mi?700:400}}>{m}</button>
+                      );})}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div style={{marginTop:9,padding:"7px 8px",background:"#1a1a28",borderRadius:4,fontSize:11,color:"#555",lineHeight:1.6}}>바닥 우클릭: elevation | Z: 전환</div>
+              <div style={{marginTop:9,padding:"7px 8px",background:"#ffffff",borderRadius:4,fontSize:11,color:"#555",lineHeight:1.6}}>바닥 우클릭: elevation | Z: 전환</div>
             </div>
-            <div style={{padding:"8px 12px",borderTop:"1px solid #2a2a3a",fontSize:11,color:"#6c6c8a"}}>
+            <div style={{padding:"8px 12px",borderTop:"1px solid #d0d4dc",fontSize:11,color:"#7777aa"}}>
               <div style={{marginBottom:3}}>타일: {tc}</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:"1px 8px",fontSize:10}}>{Object.keys(tcount).map(function(t){return <span key={t}>{TC[t]?TC[t].label:t}:{tcount[t]}</span>;})}</div>
+            </div>
+            <div style={{textAlign:"center",padding:"4px 0 8px"}}>
+              <img src="data:image/png;base64,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" style={{width:64,height:64,objectFit:"contain"}} alt="duck"/>
             </div>
           </div>
         )}
       </div>
 
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{height:52,background:lmode?"#1a1a0a":"#14141e",borderBottom:"1px solid "+(lmode?"#f1c40f44":"#2a2a3a"),display:"flex",alignItems:"center",padding:"0 14px",gap:6,flexShrink:0}}>
+        <div style={{height:52,background:lmode?"#fffde7":"#ffffff",borderBottom:"1px solid "+(lmode?"#f1c40f44":"#d0d4dc"),display:"flex",alignItems:"center",padding:"0 14px",gap:6,flexShrink:0}}>
           <div style={{fontSize:15,fontWeight:700,color:lmode?"#f1c40f":"#8b93ff",padding:"3px 10px",background:lmode?"#f1c40f22":"#5865f222",borderRadius:4,border:"1px solid "+(lmode?"#f1c40f44":"#5865f244"),marginRight:3}}>{vf&&vf.name}{lmode&&<span style={{fontSize:12,color:"#9a8a5a",marginLeft:5}}>{isLP?"클릭 연결":"층 선택"}</span>}</div>
           {!lmode&&(
             <React.Fragment>
-              <div style={{width:1,height:20,background:"#2a2a3a"}}/>
+              <div style={{width:1,height:20,background:"#d0d4dc"}}/>
               <button onClick={undo} style={TB}>{"↩"}</button>
               <button onClick={redo} style={TB}>{"↪"}</button>
-              <div style={{width:1,height:20,background:"#2a2a3a"}}/>
+              <div style={{width:1,height:20,background:"#d0d4dc"}}/>
               <button onClick={function(){setGrid(function(v){return !v;});}} style={Object.assign({},TB,{color:grid?"#8b93ff":"#6c6c8a"})}>{"▦"}</button>
             </React.Fragment>
           )}
           <button onClick={function(){setZoom(function(z){return Math.min(3,z+0.2);});}} style={TB}>+</button>
-          <span style={{fontSize:11,color:"#6c6c8a",minWidth:40,textAlign:"center"}}>{Math.round(zoom*100)}%</span>
+          <span style={{fontSize:11,color:"#7777aa",minWidth:40,textAlign:"center"}}>{Math.round(zoom*100)}%</span>
           <button onClick={function(){setZoom(function(z){return Math.max(0.25,z-0.2);});}} style={TB}>-</button>
           <button onClick={function(){setZoom(1);setPan({x:0,y:0});}} style={TB}>{"⌂"}</button>
           <div style={{flex:1}}/>
-          {hover&&hover.x>=0&&hover.x<mw&&hover.y>=0&&hover.y<mh&&<span style={{fontSize:13,color:"#6c6c8a"}}>({hover.x},{hover.y})</span>}
+          {hover&&hover.x>=0&&hover.x<mw&&hover.y>=0&&hover.y<mh&&<span style={{fontSize:13,color:"#7777aa"}}>({hover.x},{hover.y})</span>}
+          {!selMode&&!lmode&&<span style={{fontSize:11,color:"#7777aa",minWidth:36,textAlign:"center"}} title="브러시 크기 [ ]">{brushSize===1?"브러시 1":"브러시 "+brushSize}</span>}
           {!lmode&&(
             <React.Fragment>
-              <div style={{width:1,height:20,background:"#2a2a3a"}}/>
-              <button onClick={function(){setSelMode(function(v){if(v){setSelRect(null);setSelTiles(null);}return !v;});}} title="선택 이동 (S)" style={Object.assign({},TB,{background:selMode?"#e67e2233":"transparent",color:selMode?"#e67e22":"#9999aa",border:"1px solid "+(selMode?"#e67e2266":"#2a2a3a"),fontSize:14})}>{"⬚"}</button>
-              <div style={{width:1,height:20,background:"#2a2a3a"}}/>
+              <div style={{width:1,height:20,background:"#d0d4dc"}}/>
+              <button onClick={function(){setSelMode(function(v){if(v){setSelRect(null);setSelTiles(null);}return !v;});}} title="선택 이동 (S)" style={Object.assign({},TB,{background:selMode?"#e67e2233":"transparent",color:selMode?"#e67e22":"#9999aa",border:"1px solid "+(selMode?"#e67e2266":"#d0d4dc"),fontSize:14})}>{"⬚"}</button>
+              <button onClick={function(){setShowRoof(function(v){return !v;});}} title="지붕 레이어 토글" style={Object.assign({},TB,{background:showRoof?"#c0873a33":"transparent",color:showRoof?"#c0873a":"#9999aa",border:"1px solid "+(showRoof?"#c0873a66":"#d0d4dc"),fontSize:14})}>{"⌂"}</button>
+              <div style={{width:1,height:20,background:"#d0d4dc"}}/>
               <button onClick={clearAll} style={Object.assign({},TB,{color:"#e74c3c"})}>{"🗑"}</button>
               <button onClick={function(){setShowPre(true);}} style={Object.assign({},TB,{color:"#2ecc71",fontSize:12})}>{"📦 프리셋"}</button>
               <button onClick={function(){setSaveName(lname);setShowSave(true);}} style={Object.assign({},TB,{color:"#f1c40f",fontSize:12})}>{"💾"}</button>
               <button onClick={function(){setImpTxt("");setImpErr("");setShowImp(true);}} style={Object.assign({},TB,{color:"#9b59b6",fontSize:12})}>{"📥"}</button>
-              <button onClick={function(){setMergeMd(function(v){return !v;});}} style={Object.assign({},TB,{background:mergeMd?"#f39c1233":"transparent",color:mergeMd?"#f39c12":"#6c6c8a",border:"1px solid "+(mergeMd?"#f39c1266":"#2a2a3a"),borderRadius:5,padding:"5px 10px",fontSize:11,fontWeight:700,flexDirection:"column",lineHeight:1.2,gap:2})}>
+              <button onClick={function(){setMergeMd(function(v){return !v;});}} style={Object.assign({},TB,{background:mergeMd?"#f39c1233":"transparent",color:mergeMd?"#f39c12":"#6c6c8a",border:"1px solid "+(mergeMd?"#f39c1266":"#d0d4dc"),borderRadius:5,padding:"5px 10px",fontSize:11,fontWeight:700,flexDirection:"column",lineHeight:1.2,gap:2})}>
                 <span style={{fontSize:13}}>{"⬛"}</span>
                 <span style={{fontSize:9,whiteSpace:"nowrap"}}>{mergeMd?"병합ON":"병합OFF"}</span>
               </button>
@@ -1270,56 +1346,63 @@ function App(){
         </div>
 
         <div style={{position:"relative",flex:1,overflow:"hidden"}}>
-          {selMode&&<div style={{position:"absolute",top:10,left:"50%",transform:"translateX(-50%)",background:"#1a1a0acc",border:"1px solid #e67e2255",borderRadius:7,padding:"7px 16px",zIndex:50,pointerEvents:"none",display:"flex",alignItems:"center",gap:7}}><span style={{color:"#e67e22"}}>{"⬚"}</span><span style={{fontSize:12,color:"#e8e8f0"}}>{selTiles?"드래그로 이동 | ESC 해제":"드래그로 영역 선택"}</span><span style={{fontSize:10,color:"#9a8a5a"}}>S·ESC</span></div>}
-          {isLF&&<div style={{position:"absolute",inset:0,background:"#0008",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,pointerEvents:"none"}}><div style={{textAlign:"center",color:"#f1c40f"}}><div style={{fontSize:36,marginBottom:6}}>{"⌗"}</div><div style={{fontSize:16,fontWeight:700}}>연결할 층을 왼쪽에서 선택하세요</div></div></div>}
-          {isLP&&<div style={{position:"absolute",top:10,left:"50%",transform:"translateX(-50%)",background:"#1a1a0acc",border:"1px solid #f1c40f55",borderRadius:7,padding:"7px 16px",zIndex:50,pointerEvents:"none",display:"flex",alignItems:"center",gap:7}}><span style={{color:"#f1c40f"}}>{"⌗"}</span><span style={{fontSize:12,color:"#e8e8f0"}}>연결할 지점 클릭</span><span style={{fontSize:10,color:"#9a8a5a"}}>ESC</span></div>}
-          <div ref={ctRef} style={{width:"100%",height:"100%",overflow:"hidden",cursor:isLP?"crosshair":(selMode?"crosshair":(panning?"grabbing":"crosshair")),background:"#0a0a12"}} onContextMenu={function(e){e.preventDefault();}} onPointerDown={onPD} onPointerMove={onPM} onPointerUp={onPU} onPointerLeave={onPU}>
+          {selMode&&<div style={{position:"absolute",top:10,left:"50%",transform:"translateX(-50%)",background:"rgba(255,255,255,0.92)",border:"1px solid #e67e2255",borderRadius:7,padding:"7px 16px",zIndex:50,pointerEvents:"none",display:"flex",alignItems:"center",gap:7}}><span style={{color:"#e67e22"}}>{"⬚"}</span><span style={{fontSize:12,color:"#1a1a2e"}}>{selTiles?"드래그로 이동 | ESC 해제":"드래그로 영역 선택"}</span><span style={{fontSize:10,color:"#9a8a5a"}}>S·ESC</span></div>}
+          {isLF&&<div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.3)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,pointerEvents:"none"}}><div style={{textAlign:"center",color:"#f1c40f"}}><div style={{fontSize:36,marginBottom:6}}>{"⌗"}</div><div style={{fontSize:16,fontWeight:700}}>연결할 층을 왼쪽에서 선택하세요</div></div></div>}
+          {isLP&&<div style={{position:"absolute",top:10,left:"50%",transform:"translateX(-50%)",background:"rgba(255,255,255,0.92)",border:"1px solid #f1c40f55",borderRadius:7,padding:"7px 16px",zIndex:50,pointerEvents:"none",display:"flex",alignItems:"center",gap:7}}><span style={{color:"#f1c40f"}}>{"⌗"}</span><span style={{fontSize:12,color:"#1a1a2e"}}>연결할 지점 클릭</span><span style={{fontSize:10,color:"#9a8a5a"}}>ESC</span></div>}
+          <div ref={ctRef} style={{width:"100%",height:"100%",overflow:"hidden",cursor:isLP?"crosshair":(selMode?"crosshair":(panning?"grabbing":"crosshair")),background:"#e8eaed"}} onContextMenu={function(e){e.preventDefault();}} onPointerDown={onPD} onPointerMove={onPM} onPointerUp={onPU} onPointerLeave={onPU}>
             <div ref={cvRef} style={{position:"absolute",left:0,top:0,transform:"translate("+pan.x+"px,"+pan.y+"px) scale("+zoom+")",transformOrigin:"0 0"}}>
-              <div style={{width:mw*GS,height:mh*GS,background:"#181824",position:"relative",boxShadow:"0 0 60px #0005",outline:isLP?"2px solid #f1c40f55":"none"}}>
+              <div style={{width:mw*GS,height:mh*GS,background:"#f8f9fb",position:"relative",boxShadow:"0 0 60px #0005",outline:isLP?"2px solid #f1c40f55":"none"}}>
                 <svg width={mw*GS} height={mh*GS} style={{position:"absolute",top:0,left:0,pointerEvents:"none"}}>{glines}</svg>
                 {Object.keys(tiles).map(function(k){return renderTile(k,tiles[k]);})}
                 {selOverlay}
                 {hstairPick&&hstairOverlay}
-                {hover&&hover.x>=0&&hover.x<mw&&hover.y>=0&&hover.y<mh&&<div style={{position:"absolute",left:hover.x*GS,top:hover.y*GS,width:GS,height:GS,border:"2px solid "+(isLP?"#f1c40f88":(selMode?"#e67e2288":"#5865f288")),borderRadius:2,pointerEvents:"none",zIndex:100,boxSizing:"border-box"}}/>}
+                {hover&&hover.x>=0&&hover.x<mw&&hover.y>=0&&hover.y<mh&&(function(){
+                  var isLadderTool=tool===T.LADDER&&!selMode;
+                  var bSize=isLadderTool?2:brushSize;
+                  var half=isLadderTool?0:Math.floor(bSize/2);
+                  var hx=(hover.x-half)*GS,hy=(hover.y-half)*GS;
+                  var hw=bSize*GS,hh=bSize*GS;
+                  return <div style={{position:"absolute",left:hx,top:hy,width:hw,height:hh,border:"2px solid "+(isLP?"#f1c40f88":(selMode?"#e67e2288":"#5865f288")),borderRadius:2,pointerEvents:"none",zIndex:100,boxSizing:"border-box"}}/>;
+                })()}
               </div>
             </div>
-            {tc===0&&!lmode&&<div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",textAlign:"center",color:"#3a3a5a",pointerEvents:"none"}}><div style={{fontSize:50,marginBottom:8}}>{"▣"}</div><div style={{fontSize:16,fontWeight:600}}>클릭하여 타일 배치</div></div>}
+            {tc===0&&!lmode&&<div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",textAlign:"center",color:"#aaaacc",pointerEvents:"none"}}><div style={{fontSize:50,marginBottom:8}}>{"▣"}</div><div style={{fontSize:16,fontWeight:600}}>클릭하여 타일 배치</div></div>}
           </div>
         </div>
       </div>
 
       {tileParam&&(
-        <div style={{position:"fixed",inset:0,background:"#0006",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1300}} onClick={function(){setTileParam(null);}}>
-          <div onClick={function(e){e.stopPropagation();}} style={{background:"#1a1a28",borderRadius:10,border:"2px solid "+tileParam.color,padding:22,width:260,display:"flex",flexDirection:"column",gap:14}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.25)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1300}} onClick={function(){setTileParam(null);}}>
+          <div onClick={function(e){e.stopPropagation();}} style={{background:"#ffffff",borderRadius:10,border:"2px solid "+tileParam.color,padding:22,width:260,display:"flex",flexDirection:"column",gap:14}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{width:12,height:12,borderRadius:2,background:tileParam.color,display:"inline-block",flexShrink:0}}/>
-              <span style={{fontWeight:700,fontSize:13,color:"#e8e8f0",flex:1}}>{tileParam.label}</span>
+              <span style={{fontWeight:700,fontSize:13,color:"#1a1a2e",flex:1}}>{tileParam.label}</span>
               <button onClick={function(){setTileParam(null);}} style={{background:"none",border:"none",color:"#666",cursor:"pointer",fontSize:18,lineHeight:1,padding:0}}>{"×"}</button>
             </div>
             <div>
-              <div style={{fontSize:11,color:"#6c6c8a",marginBottom:6}}>높이 (m)</div>
+              <div style={{fontSize:11,color:"#7777aa",marginBottom:6}}>높이 (m)</div>
               <div style={{display:"flex",gap:8,alignItems:"center"}}>
                 <input type="number" autoFocus value={tileParam.valUU/100} min={0.1} max={20} step={0.1}
                   onChange={function(e){var v=Math.round(Number(e.target.value)*100);setTileParam(function(p){return Object.assign({},p,{valUU:v});});}}
                   onKeyDown={function(e){if(e.key==="Enter"){tileParam.setV(tileParam.valUU);showM(tileParam.label+" "+(tileParam.valUU/100)+"m 적용");setTileParam(null);}if(e.key==="Escape")setTileParam(null);}}
                   style={Object.assign({},inp,{flex:1,padding:"8px 10px",fontSize:16,fontWeight:700})}/>
-                <span style={{fontSize:12,color:"#6c6c8a",minWidth:52,textAlign:"right"}}>{tileParam.valUU+" UU"}</span>
+                <span style={{fontSize:12,color:"#7777aa",minWidth:52,textAlign:"right"}}>{tileParam.valUU+" UU"}</span>
               </div>
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={function(){tileParam.setV(tileParam.valUU);showM(tileParam.label+" "+(tileParam.valUU/100)+"m 적용");setTileParam(null);}} style={{flex:1,padding:"9px 0",background:tileParam.color,color:"#fff",border:"none",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:13}}>적용</button>
-              <button onClick={function(){setTileParam(null);}} style={{flex:1,padding:"9px 0",background:"transparent",color:"#9999aa",border:"1px solid #2a2a3a",borderRadius:6,cursor:"pointer",fontSize:13}}>취소</button>
+              <button onClick={function(){setTileParam(null);}} style={{flex:1,padding:"9px 0",background:"transparent",color:"#555566",border:"1px solid #d0d4dc",borderRadius:6,cursor:"pointer",fontSize:13}}>취소</button>
             </div>
           </div>
         </div>
       )}
 
       {showCfg&&(
-        <div style={{position:"fixed",inset:0,background:"#000a",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1200}} onClick={function(){setShowCfg(false);}}>
-          <div onClick={function(e){e.stopPropagation();}} style={{background:"#1a1a28",borderRadius:10,border:"1px solid #f39c1244",padding:22,width:380,display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1200}} onClick={function(){setShowCfg(false);}}>
+          <div onClick={function(e){e.stopPropagation();}} style={{background:"#ffffff",borderRadius:10,border:"1px solid #f39c1244",padding:22,width:380,display:"flex",flexDirection:"column",gap:12}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <span style={{fontWeight:700,fontSize:14,color:"#f39c12"}}>{"⚙ UE 단위 설정"}</span>
-              <button onClick={function(){setShowCfg(false);}} style={{background:"none",border:"none",color:"#888",cursor:"pointer",fontSize:18}}>{"×"}</button>
+              <button onClick={function(){setShowCfg(false);}} style={{background:"none",border:"none",color:"#666",cursor:"pointer",fontSize:18}}>{"×"}</button>
             </div>
             {[
               ["셀 크기 (m/칸)",cellSize/100,function(v){setCellSize(Math.round(v*100));},0.5,10,"기본 1m/칸"],
@@ -1331,14 +1414,14 @@ function App(){
               ["데코 中 높이 (m)",decoHM/100,function(v){setDecoHM(Math.round(v*100));},0.1,5,"기본 2m"],
               ["데코 小 높이 (m)",decoHS/100,function(v){setDecoHS(Math.round(v*100));},0.1,3,"기본 1m"],
             ].map(function(item,idx){return(
-              <div key={idx} style={{borderTop:idx===2?"1px solid #2a2a3a":undefined,paddingTop:idx===2?10:0}}>
+              <div key={idx} style={{borderTop:idx===2?"1px solid #d0d4dc":undefined,paddingTop:idx===2?10:0}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
                   <span style={{fontSize:12,color:idx>=5?"#7d6e57":"#c8c8d4"}}>{item[0]}</span>
                   <span style={{fontSize:10,color:"#555"}}>{item[5]}</span>
                 </div>
                 <div style={{display:"flex",gap:6,alignItems:"center"}}>
                   <input type="number" value={item[1]} min={item[3]} max={item[4]} step={0.1} onChange={function(e){item[2](Number(e.target.value));}} style={Object.assign({},inp,{flex:1,padding:"6px 8px",fontSize:13})}/>
-                  <span style={{fontSize:11,color:"#6c6c8a",minWidth:52}}>{Math.round(item[1]*100)+" UU"}</span>
+                  <span style={{fontSize:11,color:"#7777aa",minWidth:52}}>{Math.round(item[1]*100)+" UU"}</span>
                 </div>
               </div>
             );})}
@@ -1348,30 +1431,30 @@ function App(){
       )}
 
       {showPre&&(
-        <div style={{position:"fixed",inset:0,background:"#000a",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={function(){setShowPre(false);}}>
-          <div onClick={function(e){e.stopPropagation();}} style={{background:"#1a1a28",borderRadius:10,border:"1px solid #2a2a3a",padding:20,width:460,maxHeight:"80vh",display:"flex",flexDirection:"column",gap:10}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={function(){setShowPre(false);}}>
+          <div onClick={function(e){e.stopPropagation();}} style={{background:"#ffffff",borderRadius:10,border:"1px solid #d0d4dc",padding:20,width:460,maxHeight:"80vh",display:"flex",flexDirection:"column",gap:10}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <span style={{fontWeight:700,fontSize:15}}>프리셋 / 내 저장</span>
-              <button onClick={function(){setShowPre(false);}} style={{background:"none",border:"none",color:"#888",cursor:"pointer",fontSize:18}}>{"×"}</button>
+              <button onClick={function(){setShowPre(false);}} style={{background:"none",border:"none",color:"#666",cursor:"pointer",fontSize:18}}>{"×"}</button>
             </div>
             <div style={{fontSize:12,color:"#e74c3c",padding:"7px 10px",background:"#e74c3c11",borderRadius:5,border:"1px solid #e74c3c33"}}>현재 작업이 교체됩니다.</div>
-            <div style={{fontSize:10,fontWeight:700,color:"#6c6c8a",textTransform:"uppercase"}}>기본 프리셋</div>
+            <div style={{fontSize:10,fontWeight:700,color:"#7777aa",textTransform:"uppercase"}}>기본 프리셋</div>
             <div style={{display:"flex",flexDirection:"column",gap:5}}>
               {PRESETS.map(function(p){return(
-                <button key={p.id} onClick={function(){loadPre(p);}} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 10px",borderRadius:7,border:"1px solid #2a2a3a",background:"#14141e",cursor:"pointer",textAlign:"left"}} onMouseEnter={function(e){e.currentTarget.style.borderColor="#5865f2";e.currentTarget.style.background="#5865f211";}} onMouseLeave={function(e){e.currentTarget.style.borderColor="#2a2a3a";e.currentTarget.style.background="#14141e";}}>
+                <button key={p.id} onClick={function(){loadPre(p);}} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 10px",borderRadius:7,border:"1px solid #d0d4dc",background:"#ffffff",cursor:"pointer",textAlign:"left"}} onMouseEnter={function(e){e.currentTarget.style.borderColor="#5865f2";e.currentTarget.style.background="#5865f211";}} onMouseLeave={function(e){e.currentTarget.style.borderColor="#d0d4dc";e.currentTarget.style.background="#ffffff";}}>
                   <span style={{fontSize:24,lineHeight:1,flexShrink:0}}>{p.icon}</span>
-                  <div><div style={{fontWeight:700,fontSize:12,color:"#e8e8f0",marginBottom:2}}>{p.label}</div><div style={{fontSize:11,color:"#6c6c8a"}}>{p.desc}</div></div>
+                  <div><div style={{fontWeight:700,fontSize:12,color:"#1a1a2e",marginBottom:2}}>{p.label}</div><div style={{fontSize:11,color:"#7777aa"}}>{p.desc}</div></div>
                 </button>
               );})}
             </div>
-            <div style={{fontSize:10,fontWeight:700,color:"#6c6c8a",textTransform:"uppercase"}}>{"내 저장 프리셋"+(saved.length>0?" ("+saved.length+")":"")}</div>
+            <div style={{fontSize:10,fontWeight:700,color:"#7777aa",textTransform:"uppercase"}}>{"내 저장 프리셋"+(saved.length>0?" ("+saved.length+")":"")}</div>
             {saved.length===0
-              ?<div style={{fontSize:11,color:"#444",padding:"10px",textAlign:"center",border:"1px dashed #2a2a3a",borderRadius:7}}>저장된 프리셋 없음</div>
+              ?<div style={{fontSize:11,color:"#444",padding:"10px",textAlign:"center",border:"1px dashed #d0d4dc",borderRadius:7}}>저장된 프리셋 없음</div>
               :<div style={{display:"flex",flexDirection:"column",gap:4,overflowY:"auto",maxHeight:160}}>
                 {saved.map(function(p){return(
-                  <div key={p.name} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",borderRadius:7,border:"1px solid #2a2a3a",background:"#14141e"}}>
+                  <div key={p.name} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",borderRadius:7,border:"1px solid #d0d4dc",background:"#ffffff"}}>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:700,fontSize:12,color:"#e8e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
+                      <div style={{fontWeight:700,fontSize:12,color:"#1a1a2e",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
                       <div style={{fontSize:10,color:"#555"}}>{p.savedAt+" · "+(p.floors&&p.floors.length)+"층"}</div>
                     </div>
                     <button onClick={function(){doLoad(p);}} style={{padding:"4px 10px",borderRadius:5,border:"1px solid #5865f244",background:"#5865f222",color:"#8b93ff",cursor:"pointer",fontSize:11,fontWeight:700}}>불러오기</button>
@@ -1385,11 +1468,11 @@ function App(){
       )}
 
       {showSave&&(
-        <div style={{position:"fixed",inset:0,background:"#000a",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100}} onClick={function(){setShowSave(false);}}>
-          <div onClick={function(e){e.stopPropagation();}} style={{background:"#1a1a28",borderRadius:10,border:"1px solid #f1c40f44",padding:20,width:360,display:"flex",flexDirection:"column",gap:10}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100}} onClick={function(){setShowSave(false);}}>
+          <div onClick={function(e){e.stopPropagation();}} style={{background:"#ffffff",borderRadius:10,border:"1px solid #f1c40f44",padding:20,width:360,display:"flex",flexDirection:"column",gap:10}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <span style={{fontWeight:700,fontSize:14,color:"#f1c40f"}}>{"💾 저장"}</span>
-              <button onClick={function(){setShowSave(false);}} style={{background:"none",border:"none",color:"#888",cursor:"pointer",fontSize:18}}>{"×"}</button>
+              <button onClick={function(){setShowSave(false);}} style={{background:"none",border:"none",color:"#666",cursor:"pointer",fontSize:18}}>{"×"}</button>
             </div>
             <input value={saveName} onChange={function(e){setSaveName(e.target.value);}} onKeyDown={function(e){if(e.key==="Enter")doSave(saveName);}} placeholder="프리셋 이름..." autoFocus style={Object.assign({},inp,{width:"100%",padding:"8px 10px",fontSize:13})}/>
             {saved.some(function(p){return p.name===(saveName&&saveName.trim()||lname);})&&(
@@ -1401,42 +1484,42 @@ function App(){
             )}
             <div style={{display:"flex",gap:7}}>
               <button onClick={function(){doSave(saveName);}} style={{flex:1,padding:"9px 0",background:"#f1c40f",color:"#000",border:"none",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:13}}>저장</button>
-              <button onClick={function(){setShowSave(false);}} style={{flex:1,padding:"9px 0",background:"transparent",color:"#9999aa",border:"1px solid #2a2a3a",borderRadius:6,cursor:"pointer",fontSize:13}}>취소</button>
+              <button onClick={function(){setShowSave(false);}} style={{flex:1,padding:"9px 0",background:"transparent",color:"#555566",border:"1px solid #d0d4dc",borderRadius:6,cursor:"pointer",fontSize:13}}>취소</button>
             </div>
           </div>
         </div>
       )}
 
       {showImp&&(
-        <div style={{position:"fixed",inset:0,background:"#000a",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100}} onClick={function(){setShowImp(false);}}>
-          <div onClick={function(e){e.stopPropagation();}} style={{background:"#1a1a28",borderRadius:10,border:"1px solid #9b59b644",padding:20,width:480,display:"flex",flexDirection:"column",gap:8}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100}} onClick={function(){setShowImp(false);}}>
+          <div onClick={function(e){e.stopPropagation();}} style={{background:"#ffffff",borderRadius:10,border:"1px solid #9b59b644",padding:20,width:480,display:"flex",flexDirection:"column",gap:8}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <span style={{fontWeight:700,fontSize:14,color:"#9b59b6"}}>{"📥 JSON 불러오기"}</span>
-              <button onClick={function(){setShowImp(false);}} style={{background:"none",border:"none",color:"#888",cursor:"pointer",fontSize:18}}>{"×"}</button>
+              <button onClick={function(){setShowImp(false);}} style={{background:"none",border:"none",color:"#666",cursor:"pointer",fontSize:18}}>{"×"}</button>
             </div>
             <textarea value={impTxt} onChange={function(e){setImpTxt(e.target.value);setImpErr("");}} placeholder='{"name":"...","floors":[...]}' style={Object.assign({},inp,{width:"100%",height:140,color:"#8b93ff",fontSize:11,fontFamily:"monospace",padding:10,resize:"none",border:"1px solid "+(impErr?"#e74c3c":"#9b59b644")})}/>
             {impErr&&<div style={{fontSize:11,color:"#e74c3c"}}>{impErr}</div>}
             <div style={{display:"flex",gap:7}}>
               <button onClick={doImport} style={{flex:1,padding:"9px 0",background:"#9b59b6",color:"#fff",border:"none",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:13}}>불러오기</button>
-              <button onClick={function(){setShowImp(false);}} style={{flex:1,padding:"9px 0",background:"transparent",color:"#9999aa",border:"1px solid #2a2a3a",borderRadius:6,cursor:"pointer",fontSize:13}}>취소</button>
+              <button onClick={function(){setShowImp(false);}} style={{flex:1,padding:"9px 0",background:"transparent",color:"#555566",border:"1px solid #d0d4dc",borderRadius:6,cursor:"pointer",fontSize:13}}>취소</button>
             </div>
           </div>
         </div>
       )}
 
       {showExp&&(
-        <div style={{position:"fixed",inset:0,background:"#000a",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={function(){setShowExp(false);}}>
-          <div onClick={function(e){e.stopPropagation();}} style={{background:"#1a1a28",borderRadius:10,border:"1px solid #2a2a3a",padding:20,width:660,maxHeight:"90vh",display:"flex",flexDirection:"column",gap:8}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={function(){setShowExp(false);}}>
+          <div onClick={function(e){e.stopPropagation();}} style={{background:"#ffffff",borderRadius:10,border:"1px solid #d0d4dc",padding:20,width:660,maxHeight:"90vh",display:"flex",flexDirection:"column",gap:8}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <span style={{fontWeight:700,fontSize:14}}>{"Export ("+floors.length+"개 층 · "+cellSize+"UU/칸 · "+floorGap+"UU 층간격)"}</span>
-              <button onClick={function(){setShowExp(false);}} style={{background:"none",border:"none",color:"#888",cursor:"pointer",fontSize:18}}>{"×"}</button>
+              <button onClick={function(){setShowExp(false);}} style={{background:"none",border:"none",color:"#666",cursor:"pointer",fontSize:18}}>{"×"}</button>
             </div>
             <div style={{display:"flex",gap:5}}>
               {[["md","Markdown"],["json","JSON"]].map(function(item){return(
-                <button key={item[0]} onClick={function(){openExp(item[0]);}} style={{padding:"6px 16px",borderRadius:5,border:"1px solid "+(expTab===item[0]?"#5865f2":"#2a2a3a"),background:expTab===item[0]?"#5865f222":"transparent",color:expTab===item[0]?"#8b93ff":"#6c6c8a",cursor:"pointer",fontSize:12,fontWeight:600}}>{item[1]}</button>
+                <button key={item[0]} onClick={function(){openExp(item[0]);}} style={{padding:"6px 16px",borderRadius:5,border:"1px solid "+(expTab===item[0]?"#5865f2":"#d0d4dc"),background:expTab===item[0]?"#5865f222":"transparent",color:expTab===item[0]?"#8b93ff":"#6c6c8a",cursor:"pointer",fontSize:12,fontWeight:600}}>{item[1]}</button>
               );})}
             </div>
-            <textarea readOnly value={expContent} style={Object.assign({},inp,{width:"100%",flex:1,minHeight:320,color:expTab==="md"?"#c8c8d4":"#8b93ff",fontSize:11,fontFamily:"monospace",padding:12,resize:"none",whiteSpace:"pre",overflowY:"auto",border:"1px solid #2a2a3a"})}/>
+            <textarea readOnly value={expContent} style={Object.assign({},inp,{width:"100%",flex:1,minHeight:320,color:expTab==="md"?"#c8c8d4":"#8b93ff",fontSize:11,fontFamily:"monospace",padding:12,resize:"none",whiteSpace:"pre",overflowY:"auto",border:"1px solid #d0d4dc"})}/>
             <div style={{display:"flex",gap:8}}>
               {expTab==="md"&&<button onClick={dlMd} style={{flex:1,padding:"10px 0",background:"#2ecc71",color:"#fff",border:"none",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:12}}>{"📥 .md 다운로드"}</button>}
               <button onClick={doCopy} style={{flex:1,padding:"10px 0",background:"#5865f2",color:"#fff",border:"none",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:12}}>{copied?"복사됨!":"📋 복사"}</button>
