@@ -1332,7 +1332,7 @@ function App(){
               <button onClick={function(){setShowRoof(function(v){return !v;});}} title="지붕 레이어 토글" style={Object.assign({},TB,{background:showRoof?"#c0873a33":"transparent",color:showRoof?"#c0873a":"#9999aa",border:"1px solid "+(showRoof?"#c0873a66":"#d0d4dc"),fontSize:14})}>{"⌂"}</button>
               <div style={{width:1,height:20,background:"#d0d4dc"}}/>
               <button onClick={clearAll} style={Object.assign({},TB,{color:"#e74c3c"})}>{"🗑"}</button>
-              <button onClick={function(){setShowPre(true);}} style={Object.assign({},TB,{color:"#2ecc71",fontSize:12})}>{"📦 프리셋"}</button>
+              <button onClick={function(){setShowPre(true);}} style={Object.assign({},TB,{color:"#2ecc71",fontSize:12})}>{"📦 프리셋/불러오기"}</button>
               <button onClick={function(){setSaveName(lname);setShowSave(true);}} style={Object.assign({},TB,{color:"#f1c40f",fontSize:12})}>{"💾"}</button>
               <button onClick={function(){setImpTxt("");setImpErr("");setShowImp(true);}} style={Object.assign({},TB,{color:"#9b59b6",fontSize:12})}>{"📥"}</button>
               <button onClick={function(){setMergeMd(function(v){return !v;});}} style={Object.assign({},TB,{background:mergeMd?"#f39c1233":"transparent",color:mergeMd?"#f39c12":"#6c6c8a",border:"1px solid "+(mergeMd?"#f39c1266":"#d0d4dc"),borderRadius:5,padding:"5px 10px",fontSize:11,fontWeight:700,flexDirection:"column",lineHeight:1.2,gap:2})}>
@@ -1447,10 +1447,10 @@ function App(){
                 </button>
               );})}
             </div>
-            <div style={{fontSize:10,fontWeight:700,color:"#7777aa",textTransform:"uppercase"}}>{"내 저장 프리셋"+(saved.length>0?" ("+saved.length+")":"")}</div>
+            <div style={{fontSize:10,fontWeight:700,color:"#7777aa",textTransform:"uppercase"}}>{"저장된 맵"+(saved.length>0?" ("+saved.length+")":"")}</div>
             {saved.length===0
-              ?<div style={{fontSize:11,color:"#444",padding:"10px",textAlign:"center",border:"1px dashed #d0d4dc",borderRadius:7}}>저장된 프리셋 없음</div>
-              :<div style={{display:"flex",flexDirection:"column",gap:4,overflowY:"auto",maxHeight:160}}>
+              ?<div style={{fontSize:11,color:"#444",padding:"10px",textAlign:"center",border:"1px dashed #d0d4dc",borderRadius:7}}>저장된 맵 없음</div>
+              :<div style={{display:"flex",flexDirection:"column",gap:4,overflowY:"auto",maxHeight:320}}>
                 {saved.map(function(p){return(
                   <div key={p.name} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",borderRadius:7,border:"1px solid #d0d4dc",background:"#ffffff"}}>
                     <div style={{flex:1,minWidth:0}}>
